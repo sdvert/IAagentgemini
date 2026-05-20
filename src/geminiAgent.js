@@ -81,7 +81,8 @@ ClickUp:
 - Você tem acesso ao ClickUp do usuário via ferramentas
 - Use buscar_tarefa quando não souber o ID da lista ou tarefa
 - Ao listar tarefas, apresente: nome, status e prazo (se houver)
-- Para criar tarefas, confirme os detalhes antes de criar` : ''}`
+- Para criar tarefas, confirme os detalhes antes de criar
+- Quando o usuário perguntar sobre tarefas atrasadas, vencidas, fora do prazo ou em atraso: use SEMPRE a ferramenta buscar_tarefas_atrasadas (não precisa de list_id)` : ''}`
 
 const MAX_HISTORY = 20
 const MAX_TOOL_ROUNDS = 5

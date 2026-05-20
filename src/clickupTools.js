@@ -69,6 +69,16 @@ const CLICKUP_FUNCTION_DECLARATIONS = [
       },
       required: ['query']
     }
+  },
+  {
+    name: 'buscar_tarefas_atrasadas',
+    description: 'Busca tarefas com prazo vencido (data de expiração anterior a hoje) que ainda não foram concluídas.',
+    parameters: {
+      type: 'object',
+      properties: {
+        list_id: { type: 'string', description: 'ID da lista para filtrar (opcional). Se omitido, busca em todo o workspace.' }
+      }
+    }
   }
 ]
 
@@ -117,13 +127,49 @@ async function buscarTarefa({ query }) {
   }))
 }
 
+async function buscarTarefasAtrasadas({ list_id } = {}) {
+  const now = Date.now()
+  const params = new URLSearchParams({
+    include_closed: 'false',
+    due_date_lt: now
+  })
+
+  let data
+  if (list_id) {
+    data = await callApi('GET', `/list/${list_id}/task?${params}`)
+  } else {
+    const teamId = process.env.CLICKUP_TEAM_ID
+    if (!teamId) throw new Error('CLICKUP_TEAM_ID não configurado no ambiente.')
+    data = await callApi('GET', `/team/${teamId}/task?${params}`)
+  }
+
+  return data.tasks
+    .filter(t => t.due_date)
+    .map(t => {
+      const prazoMs = parseInt(t.due_date)
+      const diasAtraso = Math.floor((now - prazoMs) / (1000 * 60 * 60 * 24))
+      return {
+        id: t.id,
+        nome: t.name,
+        status: t.status?.status,
+        lista: t.list?.name,
+        prazo: new Date(prazoMs).toLocaleDateString('pt-BR'),
+        dias_atraso: diasAtraso,
+        responsaveis: t.assignees?.map(a => a.username),
+        url: t.url
+      }
+    })
+    .sort((a, b) => b.dias_atraso - a.dias_atraso)
+}
+
 async function executeTool(name, args) {
   try {
     switch (name) {
-      case 'listar_tarefas':   return await listarTarefas(args)
-      case 'criar_tarefa':     return await criarTarefa(args)
-      case 'atualizar_status': return await atualizarStatus(args)
-      case 'buscar_tarefa':    return await buscarTarefa(args)
+      case 'listar_tarefas':           return await listarTarefas(args)
+      case 'criar_tarefa':             return await criarTarefa(args)
+      case 'atualizar_status':         return await atualizarStatus(args)
+      case 'buscar_tarefa':            return await buscarTarefa(args)
+      case 'buscar_tarefas_atrasadas': return await buscarTarefasAtrasadas(args)
       default: return { error: `Ferramenta desconhecida: ${name}` }
     }
   } catch (err) {
