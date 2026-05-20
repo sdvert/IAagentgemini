@@ -98,7 +98,7 @@ async function handleMessage(userId, userText) {
   const storedHistory = await getHistory(userId)
 
   const modelConfig = {
-    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     systemInstruction: SYSTEM_INSTRUCTION,
     tools: [{ functionDeclarations: ALL_DECLARATIONS }]
   }
