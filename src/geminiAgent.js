@@ -4,6 +4,25 @@ const { generatePdf, generateImage } = require('./mediaTools')
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
+// Retry com backoff para erros 429 (rate limit)
+async function withRetry(fn, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      const is429 = err.message?.includes('429') || err.status === 429
+      const retryMatch = err.message?.match(/retry in (\d+)s/i)
+      if (is429 && attempt < maxRetries) {
+        const wait = retryMatch ? parseInt(retryMatch[1]) * 1000 : attempt * 15000
+        console.log(`⏳ Rate limit (429). Aguardando ${wait / 1000}s antes de tentar novamente... (${attempt}/${maxRetries})`)
+        await new Promise(r => setTimeout(r, wait))
+      } else {
+        throw err
+      }
+    }
+  }
+}
+
 // Ferramentas de mídia — Gemini chama quando o usuário pede PDF ou imagem
 const MEDIA_FUNCTION_DECLARATIONS = [
   {
@@ -87,7 +106,7 @@ async function handleMessage(userId, userText) {
   const model = genAI.getGenerativeModel(modelConfig)
   const chat = model.startChat({ history: toGeminiHistory(storedHistory) })
 
-  let result = await chat.sendMessage(userText)
+  let result = await withRetry(() => chat.sendMessage(userText))
 
   let pendingMedia = null
   let rounds = 0
@@ -133,7 +152,7 @@ async function handleMessage(userId, userText) {
       responseParts.push({ functionResponse: { name, response: { result: toolResult } } })
     }
 
-    result = await chat.sendMessage(responseParts)
+    result = await withRetry(() => chat.sendMessage(responseParts))
   }
 
   const responseText = result.response.text().trim() ||
